@@ -1,0 +1,7 @@
+
+{
+  "name": "MCP Gas Price Agent",
+  "description": "Provides real-time Ethereum gas prices and smart transaction timing recommendations.",
+  "url": "http://localhost:3000",
+  "endpoints": ["/api/gas-price", "/api/recommend-time"]
+}

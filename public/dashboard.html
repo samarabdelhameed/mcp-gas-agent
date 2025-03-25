@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gas Price Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background-color: #0f172a;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+    }
+    select, button, input {
+      margin: 10px;
+      padding: 6px 12px;
+      font-size: 16px;
+      border-radius: 6px;
+    }
+    #alert {
+      font-weight: bold;
+      font-size: 20px;
+      margin-top: 15px;
+    }
+    .info-box {
+      margin-top: 15px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📊 Gas Price Dashboard</h1>
+
+  <div>
+    <label>Select Network:</label>
+    <select id="networkSelect">
+      <option value="ethereum">Ethereum</option>
+      <option value="bnb">BNB</option>
+      <option value="polygon">Polygon</option>
+    </select>
+
+    <label>Refresh every:</label>
+    <select id="refreshRate">
+      <option value="5000">5 sec</option>
+      <option value="10000">10 sec</option>
+      <option value="30000">30 sec</option>
+    </select>
+
+    <button onclick="exportCSV()">Export CSV</button>
+  </div>
+
+  <div>
+    <input type="text" id="questionInput" placeholder="Ask: Is now a good time?" />
+    <button onclick="askAgent()">Ask</button>
+  </div>
+
+  <div id="alert"></div>
+
+  <canvas id="gasChart" width="800" height="400" style="margin:30px auto;"></canvas>
+
+  <div class="info-box" id="average"></div>
+  <div class="info-box" id="minmax"></div>
+
+  <script>
+    const ctx = document.getElementById('gasChart').getContext('2d');
+    const labels = [];
+    const maxFeeData = [];
+    const priorityFeeData = [];
+
+    const gasChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Max Fee (Gwei)',
+            data: maxFeeData,
+            borderColor: 'cyan',
+            backgroundColor: 'rgba(0, 255, 255, 0.3)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4
+          },
+          {
+            label: 'Priority Fee (Gwei)',
+            data: priorityFeeData,
+            borderColor: 'pink',
+            backgroundColor: 'rgba(255, 105, 180, 0.3)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4
+          }
+        ]
+      },
+      options: {
+        animation: { duration: 600 },
+        plugins: {
+          legend: {
+            labels: { color: 'white' }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: 'white' },
+            title: { display: true, text: 'Time', color: 'white' }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: 'white' },
+            title: { display: true, text: 'Fee (Gwei)', color: 'white' }
+          }
+        }
+      }
+    });
+
+    let intervalId;
+
+    function startFetching() {
+      if (intervalId) clearInterval(intervalId);
+      fetchGasData();
+      intervalId = setInterval(fetchGasData, parseInt(document.getElementById('refreshRate').value));
+    }
+
+    document.getElementById('networkSelect').addEventListener('change', () => {
+      resetChart();
+      startFetching();
+    });
+    document.getElementById('refreshRate').addEventListener('change', startFetching);
+
+    function resetChart() {
+      gasChart.data.labels.length = 0;
+      maxFeeData.length = 0;
+      priorityFeeData.length = 0;
+      gasChart.update();
+    }
+
+    async function fetchGasData() {
+      const network = document.getElementById('networkSelect').value;
+      try {
+        const res = await fetch(`/api/gas-price?network=${network}`);
+        const data = await res.json();
+        const time = new Date().toLocaleTimeString();
+
+        if (data.maxFeePerGas && data.maxPriorityFeePerGas) {
+          gasChart.data.labels.push(time);
+          maxFeeData.push(data.maxFeePerGas);
+          priorityFeeData.push(data.maxPriorityFeePerGas);
+
+          if (gasChart.data.labels.length > 30) {
+            gasChart.data.labels.shift();
+            maxFeeData.shift();
+            priorityFeeData.shift();
+          }
+
+          gasChart.update();
+
+          const avg = (maxFeeData.reduce((a, b) => a + b, 0) / maxFeeData.length).toFixed(2);
+          const min = Math.min(...maxFeeData).toFixed(2);
+          const max = Math.max(...maxFeeData).toFixed(2);
+
+          document.getElementById('average').innerHTML = `📊 <b>Average Max Fee:</b> ${avg} Gwei`;
+          document.getElementById('minmax').innerHTML = `🔻 <b>Lowest:</b> ${min} Gwei &nbsp;&nbsp; 🔺 <b>Highest:</b> ${max} Gwei`;
+
+          const alertDiv = document.getElementById('alert');
+          if (data.maxFeePerGas < 1) {
+            alertDiv.innerHTML = '🔔 <span style="color:yellow;">Gas fee very low!</span>';
+          } else {
+            alertDiv.innerHTML = '✅ <span style="color:lightgreen;">Good time to send transactions!</span>';
+          }
+        }
+      } catch (err) {
+        console.error('Fetch error', err);
+      }
+    }
+
+    function exportCSV() {
+      let csv = 'Time,Max Fee (Gwei),Priority Fee (Gwei)\n';
+      gasChart.data.labels.forEach((label, i) => {
+        csv += `${label},${maxFeeData[i]},${priorityFeeData[i]}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'gas_data.csv';
+      a.click();
+    }
+
+    async function askAgent() {
+      const question = document.getElementById('questionInput').value;
+      const network = document.getElementById('networkSelect').value;
+      try {
+        const res = await fetch('/api/nlp-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, network })
+        });
+        const data = await res.json();
+        document.getElementById('alert').innerHTML = `<span style="font-size: 20px;">${data.reply}</span>`;
+      } catch (err) {
+        document.getElementById('alert').innerText = '❌ Agent error.';
+        console.error(err);
+      }
+    }
+
+    startFetching();
+  </script>
+</body>
+</html>
