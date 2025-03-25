@@ -1,7 +1,26 @@
-
 {
   "name": "MCP Gas Price Agent",
-  "description": "Provides real-time Ethereum gas prices and smart transaction timing recommendations.",
+  "description": "Provides real-time gas prices and intelligent transaction recommendations across Ethereum, BNB, and Polygon networks. Supports natural language queries via NLP Agent.",
   "url": "http://localhost:3000",
-  "endpoints": ["/api/gas-price", "/api/recommend-time"]
+  "version": "1.0.0",
+  "contact_email": "youremail@example.com",
+  "author": "Samar Abdelhameed",
+  "endpoints": [
+    {
+      "path": "/api/gas-price",
+      "method": "GET",
+      "description": "Returns live gas prices for Ethereum, BNB, or Polygon. Use ?network=ethereum|bnb|polygon as a query param."
+    },
+    {
+      "path": "/api/recommend-time",
+      "method": "GET",
+      "description": "Provides a recommendation on whether it's a good time to send a transaction based on current gas price."
+    },
+    {
+      "path": "/api/nlp-agent",
+      "method": "POST",
+      "description": "Accepts a natural language question and responds with relevant gas price information or recommendation."
+    }
+  ],
+  "tags": ["gas", "ethereum", "polygon", "bnb", "price", "nlp", "recommendation", "mcp-plugin"]
 }
