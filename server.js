@@ -16,14 +16,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Cache
+// Caching and History
 let latestData = {
   ethereum: {},
   bnb: {},
   polygon: {}
 };
 
-// Historical max fee storage for analysis
 const maxFeeHistory = {
   ethereum: [],
   bnb: [],
@@ -39,12 +38,11 @@ app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// Fetch gas price
+// ✅ Route: Fetch gas price
 app.get('/api/gas-price', async (req, res) => {
   const network = req.query.network || 'ethereum';
   try {
     let data;
-
     if (network === 'ethereum') {
       const response = await axios.get('https://api.blocknative.com/gasprices/blockprices', {
         headers: { Authorization: blocknativeAPI }
@@ -76,13 +74,9 @@ app.get('/api/gas-price', async (req, res) => {
     }
 
     latestData[network] = data;
-
-    // Store history (keep last 100 points only)
     if (!maxFeeHistory[network]) maxFeeHistory[network] = [];
     maxFeeHistory[network].push(data.maxFeePerGas);
-    if (maxFeeHistory[network].length > 100) {
-      maxFeeHistory[network].shift();
-    }
+    if (maxFeeHistory[network].length > 100) maxFeeHistory[network].shift();
 
     res.json(data);
   } catch (err) {
@@ -91,7 +85,22 @@ app.get('/api/gas-price', async (req, res) => {
   }
 });
 
-// NLP Agent
+// ✅ Route: Recommend best time
+app.get('/api/recommend-time', (req, res) => {
+  const network = req.query.network || 'ethereum';
+  const data = latestData[network];
+  if (!data || !data.maxFeePerGas) {
+    return res.status(400).json({ error: 'Gas data unavailable' });
+  }
+
+  const recommendation = data.maxFeePerGas < 2
+    ? '✅ Good time to send transactions!'
+    : '❌ Gas is high. Better to wait.';
+
+  return res.json({ recommendation });
+});
+
+// ✅ NLP Agent
 app.post('/api/nlp-agent', (req, res) => {
   const { question, network } = req.body;
   const q = (question || '').toLowerCase();
@@ -104,10 +113,8 @@ app.post('/api/nlp-agent', (req, res) => {
 
   const { maxFeePerGas, maxPriorityFeePerGas } = data;
   const avg = ((maxFeePerGas + maxPriorityFeePerGas) / 2).toFixed(2);
-
   let reply = "🤖 I didn't understand the question.";
 
-  // Smart answers
   if (
     q.includes('good time') || q.includes('send') || q.includes('cheap') ||
     q.includes('should') || q.includes('congested') || q.includes('now')
@@ -115,9 +122,7 @@ app.post('/api/nlp-agent', (req, res) => {
     reply = maxFeePerGas < 2
       ? "🤖 ✅ It's a good time to send transactions!"
       : "🤖 ❌ Gas is high. Better to wait.";
-  } else if (
-    (q.includes('gas') || q.includes('fee')) && (q.includes('what') || q.includes('price'))
-  ) {
+  } else if ((q.includes('gas') || q.includes('fee')) && (q.includes('what') || q.includes('price'))) {
     reply = `🤖 📄 Max Fee: ${maxFeePerGas.toFixed(2)} Gwei, Priority Fee: ${maxPriorityFeePerGas.toFixed(2)} Gwei`;
   } else if (q.includes('average') || q.includes('avg')) {
     const avgHistory = history.reduce((a, b) => a + b, 0) / history.length || 0;
@@ -144,7 +149,7 @@ app.post('/api/nlp-agent', (req, res) => {
   return res.json({ reply });
 });
 
-// Server start
+// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });

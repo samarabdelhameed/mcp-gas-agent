@@ -132,7 +132,4 @@ MIT © 2025 - MCP Gas Price Agent Team
 
 ---
 
-```
-
-```
 ````
